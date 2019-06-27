@@ -1,0 +1,10 @@
+language: python
+python: 3.6
+deploy:
+  provider: pypi
+  user: mistasse
+  on:
+    tags: true
+  password:
+    secure: F4nKSjS7/0MIWa9n19GPsjEyWMLFw4Xoh4AEn+2tqcfwW4NOXm3Z4KRGMCdJe9m9lOru/2BAWwbpSHhgVbYnewXHBF/rWSgmImNeF2G107A+zne+wIjdCaNBzI4hiIkBa7TpgkJEW2Q7wkDROciJyN6hj7Ea8hoY/h0x2s/R81/1rbOQNk8pUKbCSgLguCz1Z4/XrfyIUUe4eZxxQBrFVEAzX0AM7DPGHPUf6/z/xdmplz7ZSB6TMPu4GiaTnXRzUuKypGAaRUwq7/+bpvKXw2XSJ0OvCW85B5WmALA2f40YnjnyCtxrGzlDHnimEN/9sFHbhS/6AQwgGuvHYGYmqUa/0xC3TLV2rWsMWTwwgd/XorbxrSe2Pn/Z2LYO4sL4R1GRNeUdhQeorP1SMno9C8/a6/uDVZ3UpUs141SokUbdHbcVDZVXFti6vDty9y8SxUTZ5/nVi7G322X7mQydA9X9JLSDqHFDiYYE1QyeZhrSVlgv5f+fBG1zuDzgkem1QIIt0UtTuDcBTcUrlPEexEOraCVRgj9Cbl2T+HJPWgteX6rSzEbaj4HXyaFnaSQpNMeHhE7HGUU3lRr4/2eo4daQmvq3K4BCXx4B6Au9yir0soHktJvmN8n2bttqeod01bj5CHZwF9rJAHNtqPK634BQ325JODpP+qigxjWMGJY=
+script: bash deploy.sh
