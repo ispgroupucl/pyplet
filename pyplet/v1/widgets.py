@@ -1,7 +1,7 @@
 import tornado.ioloop
 
 from .transpiler import js_code
-from .js_lib import jQ, let, undefined
+from .js_lib import jQ, undefined
 from .primitives import Component, Session, InvalidUpdateError
 
 import contextlib
@@ -33,6 +33,34 @@ class _Throttler:
 
 def throttle(**kwargs):
     return functools.partial(_Throttler, **kwargs)
+
+
+class PeriodicScheduler:
+    def __init__(self, f, ms):
+        self.f = f
+        self.dt = datetime.timedelta(milliseconds=ms)
+        self.handle = None
+        self.cleared = False
+
+    def do(self):
+        if self.cleared: return
+        self.f()
+        self.handle = tornado.ioloop.IOLoop.current().add_timeout(self.dt, self.do)
+    
+    def start(self):
+        self.cleared = False
+        self.handle = tornado.ioloop.IOLoop.current().add_timeout(self.dt, self.do)
+        return self
+
+    def clear(self):
+        self.cleared = True
+        if self.handle is not None:
+            tornado.ioloop.IOLoop.current().remove_timeout(self.handle)
+
+    def reset(self):
+        if self.handle is not None:
+            tornado.ioloop.IOLoop.current().remove_timeout(self.handle)
+        self.start()
 
 
 def on_change(*events, within=[], auto=True):
@@ -81,7 +109,7 @@ class Select(Component):
             this.domNode = document.createElement("select")
 
             def _onchange(evt):
-                let.value = this.domNode.value
+                value = this.domNode.value
                 g.session.ask_update(this, {"value":None if value == "" else value})
                 this.domNode.value = this.domNode.value
             this.domNode.onchange = _onchange.bind(this)
@@ -152,15 +180,15 @@ class Root(Component):
 
         def handle(state_change):
             if state_change.html != undefined:
-                let.rootRoot = jQ(state_change.html).get()[0]
+                rootRoot = jQ(state_change.html).get()[0]
                 this.domNode = jQ(rootRoot, this.selector).get()[0]
                 document.getElementsByTagName("body")[0].appendChild(rootRoot)
-                for let.child in this.children:
-                    let.comp = g.session.components[child.comp_id]
+                for child in this.children:
+                    comp = g.session.components[child.comp_id]
                     this.domNode.appendChild(comp.domNode)
             elif state_change.children != undefined:
-                for let.child in state_change.children:
-                    let.comp = g.session.components[child.comp_id]
+                for child in state_change.children:
+                    comp = g.session.components[child.comp_id]
                     this.domNode.appendChild(comp.domNode)
 
     __view__ = RootView
@@ -250,7 +278,7 @@ class Slider(Component):
             this._handle = jQ(".ui-slider-handle", this.jq)
 
             def _onslide(evt, ui):
-                let._value = ui.value
+                _value = ui.value
                 this._handle.text(_value)
                 g.session.ask_update(this, {"value": _value})
 

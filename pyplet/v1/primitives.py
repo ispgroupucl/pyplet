@@ -1,7 +1,7 @@
 import tornado.websocket
 
 from .transpiler import js_code
-from .js_lib import let, undefined
+from .js_lib import undefined
 
 import collections
 import contextlib
@@ -206,6 +206,9 @@ class JSSession:
         def _on_message(evt):
             return this.on_message(JSON.parse(evt.data))
         this.ws.onmessage = _on_message.bind(this)
+        def _on_close(evt):
+            document.getElementsByTagName("title")[0].innerText += "*"
+        this.ws.onclose = _on_close.bind(this)
         this.classes = {}
         this.components = {}
         this.i = 0
@@ -221,13 +224,13 @@ class JSSession:
         this.i = this.i+1
         # console.log(this.i, message)
         if message.type == "update":
-            let.old_state = Object.assign({}, this.components[message.comp_id])
+            old_state = Object.assign({}, this.components[message.comp_id])
             Object.assign(this.components[message.comp_id], message.state_change)
             this.components[message.comp_id].handle(message.state_change, old_state)
         elif message.type == "new":
-            let.comp_id = message.comp_id
-            let.Cls = this.classes[message.clss]
-            let.component = Cls(comp_id)
+            comp_id = message.comp_id
+            Cls = this.classes[message.clss]
+            component = Cls(comp_id)
             component._comp_id = comp_id
             this.components[comp_id] = component
             # component.handle(message.state)

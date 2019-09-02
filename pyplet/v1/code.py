@@ -2,7 +2,7 @@ from .primitives import Component
 from .widgets import on_change
 from .feed import Feed
 from .transpiler import js_code
-from .js_lib import undefined
+from .js_lib import this, undefined
 
 import collections
 

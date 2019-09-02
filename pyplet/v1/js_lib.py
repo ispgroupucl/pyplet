@@ -11,7 +11,7 @@ class Replaceable:
 
 jQ = Replaceable("$")
 
-let = object()
+this = object()
 
 undefined = object()
 

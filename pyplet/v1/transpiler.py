@@ -2,7 +2,7 @@ import ast as _ast
 import inspect
 import sys
 import re
-from .js_lib import let, Replaceable
+from .js_lib import Replaceable
 
 
 def js_code(f):
@@ -37,6 +37,7 @@ class _JSClass:
 
 class Phase1(_ast.NodeVisitor):
     def __init__(self, env):
+        self.env = env
         self.declarations = set()
         self._variables = [set()]
 
@@ -64,22 +65,24 @@ class Phase1(_ast.NodeVisitor):
     def visit_FunctionDef(self, node):
         self.push()
         self.variables.update([arg.arg for arg in node.args.args])
-        self.generic_visit(node)
+        for b in node.body:
+            self.visit(b)
         self.pop()
 
     def visit_Assign(self, node):
         assert len(node.targets) == 1
-        if isinstance(node.targets[0], _ast.Name):
-            id_ = node.targets[0].id
-            if id_ not in self.variables:
-                self.variables.add(id_)
-                self.declarations.add(id(node.targets[0]))
+        target = node.targets[0]
+        if isinstance(target, _ast.Name):
+            name = target.id
+            if name not in self.variables:
+                self.variables.add(name)
+                self.declarations.add(id(target))
 
     def visit_For(self, node):
         if isinstance(node.target, _ast.Name):
-            id_ = node.target.id
-            if id_ not in self.variables:
-                self.variables.add(id_)
+            name = node.target.id
+            if name not in self.variables:
+                self.variables.add(name)
                 self.declarations.add(id(node.target))
         for b in node.body:
             self.visit(b)
@@ -93,8 +96,7 @@ class Translator:
     @staticmethod
     def translate_root(node, env):
         translator = Translator(env)
-        # translator.phase1.visit(node)
-        # print(translator.phase1.declarations)
+        translator.phase1.visit(node)
         if isinstance(node, _ast.FunctionDef):
             js_fun = translator.translate_FunctionDef(node, js_code=True)
             return js_fun.__dict__.items()
@@ -195,8 +197,6 @@ class Translator:
         return "".join(["...", self.translate(node.value)])
 
     def translate_Attribute(self, node:_ast.Attribute):
-        if isinstance(node.value, _ast.Name) and self.env.get(node.value.id, None) is let:
-            return "".join(["let ", node.attr])
         return "".join([self.translate(node.value), ".", node.attr])
 
     def translate_Subscript(self, node:_ast.Subscript):
@@ -210,8 +210,7 @@ class Translator:
         env_val = self.env.get(node.id, None)
         if isinstance(env_val, Replaceable):
             return env_val.replacement
-        elif id(self) in self.phase1.declarations:
-            print(node.id)
+        elif id(node) in self.phase1.declarations:
             return "let "+node.id
         return node.id
 
@@ -257,7 +256,7 @@ class Translator:
             return "false"
         if node.value == None:
             return "null"
-        raise NotImplemented("Constant {!r} was not recognized for transpilation.".format(node.value))
+        raise NotImplementedError("Constant {!r} was not recognized for transpilation.".format(node.value))
 
     def translate_UnaryOp(self, node:_ast.UnaryOp):
         return "".join([self.translate(node.op), self.translate(node.operand)])

@@ -150,5 +150,8 @@ if __name__ == "__main__":
 
     app = make_app(args)
     app.listen(args.port, address=args.host)
-    tornado.autoreload.start()
+
+    from datetime import datetime
+    print(f"\rServer (re)started on {datetime.now().ctime()}", end="")
+
     tornado.ioloop.IOLoop.current().start()

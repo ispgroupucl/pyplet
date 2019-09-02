@@ -1,6 +1,6 @@
 from .primitives import Component
 from .transpiler import js_code
-from .js_lib import let, jQ
+from .js_lib import jQ
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -55,9 +55,10 @@ def img_to_rgba(image, scale=1, CHW=False):
 
 
 class Block(Component):
-    def init(self, classes="", style=""):
+    def init(self, classes="", style="", ms=1000):
         self.classes = classes
         self.style = style
+        self.ms = int(ms)
         self._widgets = []
 
     @contextlib.contextmanager
@@ -135,39 +136,39 @@ class Block(Component):
 
         def handle(state_change):
             if state_change.append_content != undefined:
-                let.block = this.domNode
-                let.last = block.lastChild
+                block = this.domNode
+                last = block.lastChild
                 if (not last or not last.classList.contains(state_change.append_content.stream)):
                     last = document.createElement("pre")
                     last.classList.add(state_change.append_content.stream)
                     last.style.color = state_change.append_content.color
                     block.appendChild(last)
-                let.newContent = state_change.append_content.content
-                let.lastCharet = newContent.lastIndexOf("\r")
+                newContent = state_change.append_content.content
+                lastCharet = newContent.lastIndexOf("\r")
                 if lastCharet >= 0:
-                    let.whole = last.innerText + state_change.append_content.content.slice(0, lastCharet)
-                    let.lastLine = last.innerText.lastIndexOf("\n")
+                    whole = last.innerText + state_change.append_content.content.slice(0, lastCharet)
+                    lastLine = last.innerText.lastIndexOf("\n")
                     last.innerText = whole.slice(0,lastLine+1) + newContent.slice(lastCharet+1)
                 else:
                     last.innerText += state_change.append_content.content
             if state_change.append_html != undefined:
                 this.jq.append(state_change.append_html.html)
             if state_change.clear_content != undefined:
-                let.height = this.jq.height()
-                if this._clearHeight:
-                    height = Math.max(height, this._clearHeight[0])
-                    clearTimeout(this._clearHeight[1])
-                    this._clearHeight = None
+                height = this.jq.height()
+                this.domNode.innerHTML = ""
+                if this._clearPending:
+                    clearTimeout(this._clearPending[1])
+                    height = Math.max(height, this._clearPending[0])
+                    this._clearPending = None
                 
                 this.jq.css("minHeight", height+"px")
                 def clearHeight():
                     this.jq.animate({"minHeight": ''}, {"queue":False})
-                    this._clearHeight = None
-                this._clearHeight = [height, setTimeout(clearHeight.bind(this), 1000)]
-                
-                this.domNode.innerHTML = ""
+                    this._clearPending = None
+                this._clearPending = [height, setTimeout(clearHeight.bind(this), this.ms)]
+
             if state_change.append_widget != undefined:
-                let.comp = g.session.components[state_change.append_widget.comp_id]
+                comp = g.session.components[state_change.append_widget.comp_id]
                 this.domNode.appendChild(comp.domNode)
             if state_change.remove_widget != undefined:
                 this.domNode.removeChild(g.session.components[state_change.remove_widget.comp_id].domNode)
@@ -201,12 +202,12 @@ class Feed(Component):
         if len(self.layout) == 1 and len(self.layout[0]) == 1:
             self.__current.append(self.blocks[self.layout[0][0]["name"]])
 
-    def enter(self, name=None, classes="", style=""):
+    def enter(self, name=None, **kwargs):
         if name is ...:
-            blk = Block(classes=classes, style=style)
+            blk = Block(**kwargs)
             self.append(blk)
             return self._enter(blk)
-        assert classes == style == ""
+        assert not kwargs
         return self._enter(self._getblk(name))
 
     @contextlib.contextmanager
@@ -247,13 +248,13 @@ class Feed(Component):
             if state_change.layout != undefined:
                 this._rows = []
                 this.domNode.innerHTML = ""
-                for let.row in state_change.layout:
-                    let.domRow = document.createElement("div")
+                for row in state_change.layout:
+                    domRow = document.createElement("div")
                     if this.rowClasses != "":
                         domRow.classList.add(*this.rowClasses.split(" "))
                     this._rows.push(domRow)
-                    for let.block in row:
-                        let.blk_comp_id = this.blocks[block.name].comp_id
+                    for block in row:
+                        blk_comp_id = this.blocks[block.name].comp_id
                         domRow.appendChild(g.session.components[blk_comp_id].domNode)
                     this.domNode.appendChild(domRow)
 
