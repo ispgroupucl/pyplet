@@ -145,13 +145,13 @@ if __name__ == "__main__":
     parser.add_argument("--port", default=8888, type=int)
     parser.add_argument("--apps", default="*/app_*.py")
     parser.add_argument("--top-bar", default=1, type=int)
-    parser.add_argument("--host", default="")
+    parser.add_argument("--host", default="127.0.0.1")
     args = parser.parse_args()
 
     app = make_app(args)
     app.listen(args.port, address=args.host)
 
     from datetime import datetime
-    print(f"\rServer (re)started on {datetime.now().ctime()}", end="")
+    print(f"\rServer (re)started on {datetime.now().ctime()} on http://{args.host}:{args.port}", end="")
 
     tornado.ioloop.IOLoop.current().start()
