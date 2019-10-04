@@ -1,5 +1,4 @@
 from pyplet import transpiler
-from pyplet.v1.js_lib import let
 import inspect
 import ast
 
@@ -7,7 +6,7 @@ import ast
 def test_class():
     @transpiler.js_code
     def a(y):
-        let.w = 2
+        w = 2
         x = "Ok"
         y = 3
 
