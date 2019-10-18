@@ -8,6 +8,7 @@ from .widgets import Root
 from .feed import Feed
 
 import collections
+import contextlib
 import functools
 import glob
 import sys
@@ -77,6 +78,17 @@ def files_bar(files):
     """.replace("<<ITEMS>>", "".join(items))
 
 
+@contextlib.contextmanager
+def session_into_feed(feed):
+    import pyplet
+    _ = pyplet.root
+    assert _ is None
+    pyplet.root = feed
+    with feed.enter():
+        yield
+    pyplet.root = _
+
+
 def make_app(config):
     class SocketHandler(tornado.websocket.WebSocketHandler):
         instances = dict()
@@ -93,20 +105,19 @@ def make_app(config):
                 Root(html="<div><h3>{}</h3><div class='root'></div></div>"
                           .format(app_path),
                      children=[feed])
-                self.session.add_wrapper(functools.partial(feed.enter), "default_debug")
+                self.session.add_wrapper(functools.partial(session_into_feed, feed), "feed_wrapper")
                 try:
                     if app_path not in available_apps:
                         raise FileNotFoundError()
                     with open(app_path, "r") as file:
                         src = file.read()
                 except FileNotFoundError:
-                    print("Application {!r} not found</p>".format(app_path), file=sys.stderr)
+                    print("Application {!r} not found</p>".format(app_path),
+                          file=sys.stderr)
                 else:
                     try:
                         code = compile(src, app_path, "exec")
                         self.session.env = {"__file__": app_path, "__root__": feed}
-                        import pyplet
-                        pyplet.feed = feed
                         exec(code, self.session.env)
                     except:
                         import traceback

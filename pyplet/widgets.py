@@ -37,14 +37,16 @@ def throttle(**kwargs):
 
 class PeriodicScheduler:
     def __init__(self, f, ms):
+        self.session = Session._current
         self.f = f
         self.dt = datetime.timedelta(milliseconds=ms)
         self.handle = None
         self.cleared = False
 
     def do(self):
-        if self.cleared: return
-        self.f()
+        if self.cleared or self.session.closed: return
+        with self.session:
+            self.f()
         self.handle = tornado.ioloop.IOLoop.current().add_timeout(self.dt, self.do)
     
     def start(self):

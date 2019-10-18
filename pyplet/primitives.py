@@ -11,12 +11,22 @@ import weakref
 import json
 
 
+class ListSuffixes:
+    @staticmethod
+    def append(obj, value):
+        obj.append(value)
+    @staticmethod
+    def remove(obj, value):
+        obj.remove(value)
+
+
 class Component:
     """Components are objects whose state are pseudo-synchronized between the
     frontend and the backend.
 
     Their state is meant to characterize them fully, but nothing constraints to it.
     """
+    _suffixes = ListSuffixes
 
     def __init__(self, **kwargs):
         self.__state = {}                               # Internal state
@@ -88,13 +98,13 @@ class Component:
     def __set(self, state_change):
         self.__state.update(state_change)
 
-    def update(self, *args, _frontend=True, _set=True, _trigger=True, _broadcast=None, **kwargs):
+    def update(self, *args, _set=True, _send=True, _trigger=True, _broadcast=None, **kwargs):
         assert _set
         if _broadcast is not None:
-            _frontend = _broadcast
+            _send = _broadcast
         state_change = JSLikeState(*args, **kwargs)
         # Validate changes first
-        if self.__packed_state_changes is None:
+        if self.__packed_state_changes is None:  # If initialized
             try:
                 self.validate(state_change)
             except AbortUpdateException:
@@ -102,7 +112,7 @@ class Component:
         # Reflect changes internally
         if _set:        self.__set(state_change)
         # Update Frontend
-        if _frontend:   self.__send(state_change)
+        if _send:       self.__send(state_change)
         # Trigger listeners
         if _trigger:    self.__trigger(state_change)
 
@@ -120,14 +130,9 @@ class Component:
         if name.startswith("_"):
             self.__dict__[name] = value
             return
-        if name.endswith("__append"):
-            rname = name[:-8]
-            self.__state[rname].append(value)
-            self.__send({name:value})
-            self.__trigger({name:value, rname:self.__state[rname]})
-        elif name.endswith("__remove"):
-            rname = name[:-8]
-            self.__state[rname].remove(value)
+        elif "__" in name:
+            rname, action = name.split("__")
+            getattr(self._suffixes, action)(self.__state[rname], value)
             self.__send({name:value})
             self.__trigger({name:value, rname:self.__state[rname]})
         else:
