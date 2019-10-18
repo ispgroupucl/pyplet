@@ -35,34 +35,49 @@ def throttle(**kwargs):
     return functools.partial(_Throttler, **kwargs)
 
 
-class PeriodicScheduler:
-    def __init__(self, f, ms):
-        self.session = Session._current
-        self.f = f
-        self.dt = datetime.timedelta(milliseconds=ms)
-        self.handle = None
-        self.cleared = False
+class PeriodicScheduler(Component):
+    def init(self, f, ms, reload=False):
+        self._f = f
+        self._dt = datetime.timedelta(milliseconds=ms)
+        self._handle = None
+        self._cleared = False
+        self._session = Session._current
+        self.reload = reload
 
     def do(self):
-        if self.cleared or self.session.closed: return
-        with self.session:
-            self.f()
-        self.handle = tornado.ioloop.IOLoop.current().add_timeout(self.dt, self.do)
+        if self._cleared or self._session.closed: return
+        with self._session:
+            self._f()
+        self._handle = tornado.ioloop.IOLoop.current().add_timeout(self._dt, self.do)
     
     def start(self):
-        self.cleared = False
-        self.handle = tornado.ioloop.IOLoop.current().add_timeout(self.dt, self.do)
+        self._cleared = False
+        self._handle = tornado.ioloop.IOLoop.current().add_timeout(self._dt, self.do)
         return self
 
     def clear(self):
-        self.cleared = True
-        if self.handle is not None:
-            tornado.ioloop.IOLoop.current().remove_timeout(self.handle)
+        self._cleared = True
+        if self._handle is not None:
+            tornado.ioloop.IOLoop.current().remove_timeout(self._handle)
 
     def reset(self):
-        if self.handle is not None:
-            tornado.ioloop.IOLoop.current().remove_timeout(self.handle)
+        if self._handle is not None:
+            tornado.ioloop.IOLoop.current().remove_timeout(self._handle)
         self.start()
+
+    @js_code
+    class PeriodicSchedulerView:
+        def constructor():
+            pass
+        def onclose():
+            if this.reload:
+                setTimeout(location.reload.bind(location), 1000)
+                    
+        def handle(state_change):
+            if state_change.reload:
+                g.session.ws.onclose = this.onclose.bind(this)
+    
+    __view__ = PeriodicSchedulerView
 
 
 def on_change(*events, within=[], auto=True):
