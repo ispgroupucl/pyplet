@@ -171,11 +171,9 @@ class Block(Component):
                 for c in state_change.content:
                     this.append(c)
             if state_change.content__append != undefined:
-                for c in state_change.content__append:
-                    this.append(c)
+                this.append(state_change.content__append)
             if state_change.content__remove != undefined:
-                for c in state_change.content__remove:
-                    this.domNode.removeChild(g.session.components[c.comp_id].domNode)
+                this.domNode.removeChild(g.session.components[state_change.content__remove.comp_id].domNode)
                 this.handle_height()
             if state_change.classes != undefined:
                 this.domNode.setAttribute("class", state_change.classes)

@@ -2,7 +2,7 @@ import tornado.ioloop
 
 from .transpiler import js_code
 from .js_lib import jQ, undefined
-from .primitives import Component, Session, InvalidUpdateError
+from .primitives import Component, Session, AbortUpdateException
 
 import contextlib
 import functools
@@ -257,7 +257,7 @@ class Slider(Component):
         value = state_change.value if state_change.value != undefined else self.value
         if state_change.min != undefined or state_change.max != undefined:
             if max < min:
-                raise InvalidUpdateError("max ({}) < min ({})".format(max, min))
+                raise AbortUpdateException("max ({}) < min ({})".format(max, min))
         if value < min:
             state_change.value = min
         if value > max:

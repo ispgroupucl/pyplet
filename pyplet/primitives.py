@@ -23,11 +23,8 @@ class Component:
         self.__id = id(self)                            # Unique ID
         self.__session = Session._current               # Session
         self.__session.components[self.__id] = self
-        # Dict of changes to send to the frontend
-        self.__packed_state_changes = None
         self.__listeners = []
         # Whether the widget is initialized (to skip validation on init)
-        self.__initialized = False
         # Update Frontend
         view_ref = "{}.{}".format(self.__view__.__module__,
                                   self.__view__.__qualname__)
@@ -47,9 +44,10 @@ class Component:
         }
         self.__session.write_message(json.dumps(msg))
         # Initialize in one message
-        with self.pack_updates():
-            self.init(**kwargs)
-        self.__initialized = True
+        self.__packed_state_changes = {}
+        self.init(**kwargs)
+        self.__state_to_frontend(self.__packed_state_changes)
+        self.__packed_state_changes = None
 
     def on_change(self, callback, events=None, auto=True):
         if events is not None:
@@ -77,37 +75,36 @@ class Component:
                        if self.__state[k] != v}
         return real_change
 
-    def update(self, *args, _broadcast=True, _trigger=True, **kwargs):
-        assert _broadcast or _trigger, "Does updating without js or internal event make sense ?"
+    def __trigger(self, state_change):
+        for listener in self.__listeners:
+            listener(state_change)
+
+    def __send(self, state_change):
+        if self.__packed_state_changes is None:
+            self.__state_to_frontend(state_change)
+        else:
+            self.__packed_state_changes.update(state_change)
+    
+    def __set(self, state_change):
+        self.__state.update(state_change)
+
+    def update(self, *args, _frontend=True, _set=True, _trigger=True, _broadcast=None, **kwargs):
+        assert _set
+        if _broadcast is not None:
+            _frontend = _broadcast
         state_change = JSLikeState(*args, **kwargs)
         # Validate changes first
-        if self.__initialized:
+        if self.__packed_state_changes is None:
             try:
                 self.validate(state_change)
-            except InvalidUpdateError:
+            except AbortUpdateException:
                 return
-        # Reflect changes internally immediatly
-        self.__state.update(state_change)
-        # Trigger listeners
-        if _trigger:
-            for listener in self.__listeners:
-                listener(state_change)
+        # Reflect changes internally
+        if _set:        self.__set(state_change)
         # Update Frontend
-        if _broadcast:
-            if self.__packed_state_changes is None:
-                self.__state_to_frontend(state_change)
-            else:
-                self.__packed_state_changes.update(state_change)
-
-    @contextlib.contextmanager
-    def pack_updates(self):
-        _old = self.__packed_state_changes
-        if _old is None:
-            self.__packed_state_changes = {}
-        yield
-        if _old is None:
-            self.__state_to_frontend(self.__packed_state_changes)
-            self.__packed_state_changes = _old
+        if _frontend:   self.__send(state_change)
+        # Trigger listeners
+        if _trigger:    self.__trigger(state_change)
 
     def __state_to_frontend(self, state_change):
         if not state_change: return
@@ -120,26 +117,21 @@ class Component:
         self.__session.write_message(JSONEncoder().encode(msg))
 
     def __setattr__(self, name, value):
-        if name.endswith("__append"):
-            self.__state[name[:-8]].append(value)
-            if self.__packed_state_changes is None:
-                self.__state_to_frontend({name:[value]})
-            else:
-                if name not in self.__packed_state_changes:
-                    self.__packed_state_changes[name] = []
-                self.__packed_state_changes[name].append(value)
-        elif name.endswith("__remove"):
-            self.__state[name[:-8]].remove(value)
-            if self.__packed_state_changes is None:
-                self.__state_to_frontend({name:[value]})
-            else:
-                if name not in self.__packed_state_changes:
-                    self.__packed_state_changes[name] = []
-                self.__packed_state_changes[name].append(value)
-        elif name.startswith("_"):
+        if name.startswith("_"):
             self.__dict__[name] = value
+            return
+        if name.endswith("__append"):
+            rname = name[:-8]
+            self.__state[rname].append(value)
+            self.__send({name:value})
+            self.__trigger({name:value, rname:self.__state[rname]})
+        elif name.endswith("__remove"):
+            rname = name[:-8]
+            self.__state[rname].remove(value)
+            self.__send({name:value})
+            self.__trigger({name:value, rname:self.__state[rname]})
         else:
-            self.update({name:value})
+            self.update(((name,value,),))
     
     def __getattr__(self, name):
         return self.__state[name]
@@ -265,7 +257,7 @@ class JSONEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-class InvalidUpdateError(Exception):
+class AbortUpdateException(Exception):
     pass
 
 
