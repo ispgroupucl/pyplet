@@ -33,9 +33,9 @@ class CodeCell(Component):
 
     def handle(self, state_change):
         if state_change.clear_output != undefined:
-            self.update(clear_output=state_change.clear_output, _broadcast=False)
+            self.update(clear_output=state_change.clear_output, _send=False)
         if state_change.value != undefined:
-            self.update(value=state_change.value, _broadcast=False)
+            self.update(value=state_change.value, _send=False)
         if state_change.instantiate != undefined:
             self.instantiate = state_change.instantiate
 

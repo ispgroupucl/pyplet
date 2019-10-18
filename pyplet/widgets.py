@@ -41,7 +41,6 @@ class PeriodicScheduler(Component):
         self._dt = datetime.timedelta(milliseconds=ms)
         self._handle = None
         self._cleared = False
-        self._session = Session._current
         self.reload = reload
 
     def do(self):
@@ -118,7 +117,7 @@ class Select(Component):
 
     def handle(self, state_change):
         assert len(state_change) == 1 and "value" in state_change
-        self.update(value=state_change.value, _broadcast=False)
+        self.update(value=state_change.value, _send=False)
 
     @js_code
     class SelectView:
@@ -239,7 +238,7 @@ class TextArea(Component):
 
     def handle(self, state_change):
         assert len(state_change) == 1 and "value" in state_change
-        self.update(value=state_change["value"], _broadcast=False)
+        self.update(value=state_change["value"], _send=False)
     
     @js_code
     class TextAreaView:
@@ -283,7 +282,7 @@ class Slider(Component):
 
     def handle(self, state_change):
         assert len(state_change) == 1 and "value" in state_change
-        self.update(state_change, _broadcast=False)
+        self.update(state_change, _send=False)
 
     @js_code
     class SliderView:

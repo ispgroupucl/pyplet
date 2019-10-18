@@ -29,30 +29,30 @@ class Component:
     _suffixes = ListSuffixes
 
     def __init__(self, **kwargs):
-        self.__state = {}                               # Internal state
-        self.__id = id(self)                            # Unique ID
-        self.__session = Session._current               # Session
-        self.__session.components[self.__id] = self
-        self.__listeners = []
+        self._state = {}                               # Internal state
+        self._id = id(self)                            # Unique ID
+        self._session = Session._current               # Session
+        self._session._components[self._id] = self
+        self._listeners = []
         # Whether the widget is initialized (to skip validation on init)
         # Update Frontend
         view_ref = "{}.{}".format(self.__view__.__module__,
                                   self.__view__.__qualname__)
-        if view_ref not in self.__session._Session__views:
-            self.__session._Session__views[view_ref] = self.__view__
+        if view_ref not in self._session._views:
+            self._session._views[view_ref] = self.__view__
             msg = {
                 "type": "class",
                 "clss": view_ref,
                 # "name": self.__view__._name,
                 "defn": self.__view__._defn
             }
-            self.__session.write_message(json.dumps(msg))
+            self._session.write_message(json.dumps(msg))
         msg = {
             "type": "new",
-            "comp_id": self.__id,
+            "comp_id": self._id,
             "clss": view_ref
         }
-        self.__session.write_message(json.dumps(msg))
+        self._session.write_message(json.dumps(msg))
         # Initialize in one message
         self.__packed_state_changes = {}
         self.init(**kwargs)
@@ -67,9 +67,9 @@ class Component:
             def callback(state_change):
                 if any(e in state_change for e in events):
                     _callback(state_change)
-        self.__listeners.append(callback)
+        self._listeners.append(callback)
         if auto:
-            callback(self.__state)
+            callback(self._state)
 
     def init(self):
         pass
@@ -80,28 +80,21 @@ class Component:
     def handle(self, state_change):
         raise NotImplementedError()
 
-    def diff(self, state_change):
-        real_change = {k: v for k, v in state_change.items()
-                       if self.__state[k] != v}
-        return real_change
-
-    def __trigger(self, state_change):
-        for listener in self.__listeners:
+    def _trigger(self, state_change):
+        for listener in self._listeners:
             listener(state_change)
 
-    def __send(self, state_change):
+    def _send(self, state_change):
         if self.__packed_state_changes is None:
             self.__state_to_frontend(state_change)
         else:
             self.__packed_state_changes.update(state_change)
     
-    def __set(self, state_change):
-        self.__state.update(state_change)
+    def _set(self, state_change):
+        self._state.update(state_change)
 
-    def update(self, *args, _set=True, _send=True, _trigger=True, _broadcast=None, **kwargs):
+    def update(self, *args, _set=True, _send=True, _trigger=True, **kwargs):
         assert _set
-        if _broadcast is not None:
-            _send = _broadcast
         state_change = JSLikeState(*args, **kwargs)
         # Validate changes first
         if self.__packed_state_changes is None:  # If initialized
@@ -110,21 +103,21 @@ class Component:
             except AbortUpdateException:
                 return
         # Reflect changes internally
-        if _set:        self.__set(state_change)
+        if _set:        self._set(state_change)
         # Update Frontend
-        if _send:       self.__send(state_change)
+        if _send:       self._send(state_change)
         # Trigger listeners
-        if _trigger:    self.__trigger(state_change)
+        if _trigger:    self._trigger(state_change)
 
     def __state_to_frontend(self, state_change):
         if not state_change: return
         msg = {
             "type": "update",
-            "comp_id": self.__id,
+            "comp_id": self._id,
             "state_change": state_change,
         }
-        # state_change may contain backend components => special encoder
-        self.__session.write_message(JSONEncoder().encode(msg))
+        # state_change may contain components => special encoder
+        self._session.write_message(JSONEncoder().encode(msg))
 
     def __setattr__(self, name, value):
         if name.startswith("_"):
@@ -132,21 +125,21 @@ class Component:
             return
         elif "__" in name:
             rname, action = name.split("__")
-            getattr(self._suffixes, action)(self.__state[rname], value)
-            self.__send({name:value})
-            self.__trigger({name:value, rname:self.__state[rname]})
+            getattr(self._suffixes, action)(self._state[rname], value)
+            self._send({name:value})
+            self._trigger(JSLikeState({name:value, rname:self._state[rname]}))
         else:
             self.update(((name,value,),))
     
     def __getattr__(self, name):
-        return self.__state[name]
+        return self._state[name]
 
     def __del__(self):
         msg = {
             "type": "delete",
-            "comp_id": self.__id,
+            "comp_id": self._id,
         }
-        self.__session.write_message(json.dumps(msg))
+        self._session.write_message(json.dumps(msg))
 
 
 class Session:
@@ -155,25 +148,25 @@ class Session:
 
     def __init__(self, id, socket):
         self.id = id
-        self.components = weakref.WeakValueDictionary()
         self.closed = False
-        self.__views = weakref.WeakValueDictionary()
-        self.__socket = socket
-        self.__within = 0
+        self._socket = socket
+        self._components = weakref.WeakValueDictionary()
+        self._views = weakref.WeakValueDictionary()
 
+        self.__within = 0
         self.__wrappers = collections.OrderedDict()
         self.__entered = collections.OrderedDict()
 
     def on_message(self, message):
         message = json.loads(message)
         assert message["type"] == "ask_update"
-        component = self.components[message["comp_id"]]
+        component = self._components[message["comp_id"]]
         component.handle(JSLikeState(message["state_change"]))
 
     def write_message(self, string):
         if self.closed: return
         try:
-            self.__socket.write_message(string)
+            self._socket.write_message(string)
         except tornado.websocket.WebSocketClosedError:
             self.closed = True
 
@@ -258,7 +251,7 @@ class JSSession:
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, Component):
-            return {"comp_id": o._Component__id}
+            return {"comp_id": o._id}
         return super().default(o)
 
 
