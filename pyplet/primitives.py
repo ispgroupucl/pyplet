@@ -14,10 +14,10 @@ import json
 class ListSuffixes:
     @staticmethod
     def append(obj, value):
-        obj.append(value)
+        return [*obj, value]
     @staticmethod
     def remove(obj, value):
-        obj.remove(value)
+        return [o for o in obj if o != value]
 
 
 class Component:
@@ -74,24 +74,24 @@ class Component:
     def init(self):
         pass
 
-    def validate(self, state_change):
-        pass
-
     def handle(self, state_change):
         raise NotImplementedError()
 
-    def _trigger(self, state_change):
-        for listener in self._listeners:
-            listener(state_change)
+    def adjust(self, state_change):
+        pass
+    
+    def _set(self, state_change):
+        self._state.update(state_change)
 
     def _send(self, state_change):
         if self.__packed_state_changes is None:
             self.__state_to_frontend(state_change)
         else:
             self.__packed_state_changes.update(state_change)
-    
-    def _set(self, state_change):
-        self._state.update(state_change)
+
+    def _trigger(self, state_change):
+        for listener in self._listeners:
+            listener(state_change)
 
     def update(self, *args, _set=True, _send=True, _trigger=True, **kwargs):
         assert _set
@@ -99,9 +99,9 @@ class Component:
         # Validate changes first
         if self.__packed_state_changes is None:  # If initialized
             try:
-                self.validate(state_change)
+                self.adjust(state_change)
             except AbortUpdateException:
-                return
+                raise
         # Reflect changes internally
         if _set:        self._set(state_change)
         # Update Frontend
@@ -125,11 +125,19 @@ class Component:
             return
         elif "__" in name:
             rname, action = name.split("__")
-            getattr(self._suffixes, action)(self._state[rname], value)
-            self._send({name:value})
-            self._trigger(JSLikeState({name:value, rname:self._state[rname]}))
+            whole = getattr(self._suffixes, action)(self._state[rname], value)
+            state_change = JSLikeState({name:value, rname:whole})
+            try:
+                self.adjust(state_change)
+                if name not in state_change or rname not in state_change:
+                    raise AbortUpdateException()
+                self._set({rname:state_change[rname]})
+                self._send({name:state_change[name]})
+                self._trigger(state_change)
+            except AbortUpdateException:
+                raise
         else:
-            self.update(((name,value,),))
+            self.update({name: value})
     
     def __getattr__(self, name):
         return self._state[name]

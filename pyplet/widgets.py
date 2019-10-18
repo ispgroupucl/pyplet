@@ -107,7 +107,7 @@ class Select(Component):
         self.value = value
         self.flat = flat
 
-    def validate(self, state_change):
+    def adjust(self, state_change):
         if state_change.options != undefined:
             value = (state_change.value
                      if state_change.value != undefined
@@ -267,7 +267,7 @@ class Slider(Component):
         self.max = max
         self.value = value
 
-    def validate(self, state_change):
+    def adjust(self, state_change):
         min = state_change.min if state_change.min != undefined else self.min
         max = state_change.max if state_change.max != undefined else self.max
         value = state_change.value if state_change.value != undefined else self.value
