@@ -19,12 +19,14 @@ class Component:
     """
 
     def __init__(self, **kwargs):
-        self.__state = {}
-        self.__id = id(self)
-        self.__session = Session._current
+        self.__state = {}                               # Internal state
+        self.__id = id(self)                            # Unique ID
+        self.__session = Session._current               # Session
         self.__session.components[self.__id] = self
+        # Dict of changes to send to the frontend
         self.__packed_state_changes = None
         self.__listeners = []
+        # Whether the widget is initialized (to skip validation on init)
         self.__initialized = False
         # Update Frontend
         view_ref = "{}.{}".format(self.__view__.__module__,
@@ -34,7 +36,7 @@ class Component:
             msg = {
                 "type": "class",
                 "clss": view_ref,
-                "name": self.__view__._name,
+                # "name": self.__view__._name,
                 "defn": self.__view__._defn
             }
             self.__session.write_message(json.dumps(msg))
@@ -118,7 +120,23 @@ class Component:
         self.__session.write_message(JSONEncoder().encode(msg))
 
     def __setattr__(self, name, value):
-        if name.startswith("_"):
+        if name.endswith("__append"):
+            self.__state[name[:-8]].append(value)
+            if self.__packed_state_changes is None:
+                self.__state_to_frontend({name:[value]})
+            else:
+                if name not in self.__packed_state_changes:
+                    self.__packed_state_changes[name] = []
+                self.__packed_state_changes[name].append(value)
+        elif name.endswith("__remove"):
+            self.__state[name[:-8]].remove(value)
+            if self.__packed_state_changes is None:
+                self.__state_to_frontend({name:[value]})
+            else:
+                if name not in self.__packed_state_changes:
+                    self.__packed_state_changes[name] = []
+                self.__packed_state_changes[name].append(value)
+        elif name.startswith("_"):
             self.__dict__[name] = value
         else:
             self.update({name:value})
@@ -151,7 +169,7 @@ class Session:
 
     def on_message(self, message):
         message = json.loads(message)
-        assert message["type"] == "update"
+        assert message["type"] == "ask_update"
         component = self.components[message["comp_id"]]
         component.handle(JSLikeState(message["state_change"]))
 
@@ -215,7 +233,7 @@ class JSSession:
 
     def ask_update(comp, state_change):
         this.ws.send(JSON.stringify({
-            "type": "update",
+            "type": "ask_update",
             "comp_id": comp._comp_id,
             "state_change": state_change,
         }))
@@ -242,9 +260,9 @@ class JSSession:
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
-        if not isinstance(o, Component):
-            return super().default(o)
-        return {"comp_id": o._Component__id}
+        if isinstance(o, Component):
+            return {"comp_id": o._Component__id}
+        return super().default(o)
 
 
 class InvalidUpdateError(Exception):

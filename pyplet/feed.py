@@ -13,10 +13,6 @@ import sys
 import io
 
 
-def _trim(strings):
-    return [string.strip() for string in strings]
-
-
 def arrays_to_rgba(r=None, g=None, b=None, alpha=None, scale=1):
     f = [x for x in (r, g, b) if x is not None][0]
     if r is None: r = np.zeros_like(f)
@@ -59,7 +55,7 @@ class Block(Component):
         self.classes = classes
         self.style = style
         self.ms = int(ms)
-        self._widgets = []
+        self.content = []
 
     @contextlib.contextmanager
     def enter(self):
@@ -80,15 +76,13 @@ class Block(Component):
             sys.stderr = _stderr
     
     def clear(self):
-        self.clear_content = None
-        self._widgets.clear()
+        self.content = []
     
     def append(self, widget):
         if isinstance(widget, Component):
-            self._widgets.append(widget)
-            self.append_widget = {"comp_id":widget._Component__id}
+            self.content__append = widget
         elif isinstance(widget, str):
-            self.append_html = {"html": widget}
+            self.content__append = {"html": widget}
 
     def image(self, image, scale=1, CHW=False, style="", end="", img=None):
         file = io.BytesIO()
@@ -117,8 +111,7 @@ class Block(Component):
             self.append('<img src={!r} style={!r} />{}'.format(src, style, end))
     
     def remove(self, widget):
-        self._widgets.remove(widget)
-        self.remove_widget = {"comp_id":widget._Component__id}
+        self.content__remove = widget
 
     class _StreamCapture:
         def __init__(self, block, stream):
@@ -126,7 +119,7 @@ class Block(Component):
             self.stream = stream
 
         def write(self, text):
-            self.block.append_content = dict(content=text, stream=self.stream)
+            self.block.content__append = dict(content=text, stream=self.stream)
 
     @js_code
     class BlockView:
@@ -134,50 +127,66 @@ class Block(Component):
             this.domNode = document.createElement("div")
             this.jq = jQ(this.domNode)
 
-        def handle(state_change):
-            if state_change.append_content != undefined:
+        def append(content):
+            if content.stream:
                 block = this.domNode
                 last = block.lastChild
-                if (not last or not last.classList.contains(state_change.append_content.stream)):
+                if (not last or not last.classList.contains(content.stream)):
                     last = document.createElement("pre")
-                    last.classList.add(state_change.append_content.stream)
-                    last.style.color = state_change.append_content.color
+                    last.classList.add(content.stream)
+                    last.style.color = content.color
                     block.appendChild(last)
-                newContent = state_change.append_content.content
+                newContent = content.content
                 lastCharet = newContent.lastIndexOf("\r")
                 if lastCharet >= 0:
-                    whole = last.innerText + state_change.append_content.content.slice(0, lastCharet)
+                    whole = last.innerText + content.content.slice(0, lastCharet)
                     lastLine = last.innerText.lastIndexOf("\n")
                     last.innerText = whole.slice(0,lastLine+1) + newContent.slice(lastCharet+1)
                 else:
-                    last.innerText += state_change.append_content.content
-            if state_change.append_html != undefined:
-                this.jq.append(state_change.append_html.html)
-            if state_change.clear_content != undefined:
-                height = this.jq.height()
-                this.domNode.innerHTML = ""
-                if this._clearPending:
-                    clearTimeout(this._clearPending[1])
-                    height = Math.max(height, this._clearPending[0])
-                    this._clearPending = None
-                
-                this.jq.css("minHeight", height+"px")
-                def clearHeight():
-                    this.jq.animate({"minHeight": ''}, {"queue":False})
-                    this._clearPending = None
-                this._clearPending = [height, setTimeout(clearHeight.bind(this), this.ms)]
-
-            if state_change.append_widget != undefined:
-                comp = g.session.components[state_change.append_widget.comp_id]
+                    last.innerText += content.content
+            if content.html:
+                this.jq.append(content.html)
+            if content.comp_id:
+                comp = g.session.components[content.comp_id]
                 this.domNode.appendChild(comp.domNode)
-            if state_change.remove_widget != undefined:
-                this.domNode.removeChild(g.session.components[state_change.remove_widget.comp_id].domNode)
+
+        def handle_height():
+            height = this.jq.height()
+            this.domNode.innerHTML = ""
+            if this._clearPending:
+                clearTimeout(this._clearPending[1])
+                height = Math.max(height, this._clearPending[0])
+                this._clearPending = None
+            
+            this.jq.css("minHeight", height+"px")
+            def clearHeight():
+                this.jq.animate({"minHeight": ''}, {"queue":False})
+                this._clearPending = None
+            this._clearPending = [height, setTimeout(clearHeight.bind(this), this.ms)]
+
+
+        def handle(state_change):
+            if state_change.content != undefined:
+                this.handle_height()
+                for c in state_change.content:
+                    this.append(c)
+            if state_change.content__append != undefined:
+                for c in state_change.content__append:
+                    this.append(c)
+            if state_change.content__remove != undefined:
+                for c in state_change.content__remove:
+                    this.domNode.removeChild(g.session.components[c.comp_id].domNode)
+                this.handle_height()
             if state_change.classes != undefined:
                 this.domNode.setAttribute("class", state_change.classes)
             if state_change.style != undefined:
                 this.domNode.setAttribute("style", state_change.style)
 
     __view__ = BlockView
+
+
+def _trim(strings):
+    return [string.strip() for string in strings]
 
 
 class Feed(Component):
@@ -189,7 +198,7 @@ class Feed(Component):
             for comp in row:
                 name, *opts = _trim(comp.split(";"))
                 options = dict(_trim(opt.split("=")) for opt in opts)
-                _layout[-1].append(dict(name=name, options=options))
+                _layout[-1].append({"name":name, "options":options})
         self.layout = _layout
         self.classes = classes
         self.rowClasses = rowClasses

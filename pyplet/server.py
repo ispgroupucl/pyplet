@@ -105,6 +105,8 @@ def make_app(config):
                     try:
                         code = compile(src, app_path, "exec")
                         self.session.env = {"__file__": app_path, "__root__": feed}
+                        import pyplet
+                        pyplet.feed = feed
                         exec(code, self.session.env)
                     except:
                         import traceback

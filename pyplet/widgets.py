@@ -272,7 +272,11 @@ class Slider(Component):
     class SliderView:
         def constructor():
             this.jq = jQ("""
-            <div style="margin:1ex 0ex 1ex 0ex"><div class="ui-slider-handle" style="width:initial;padding:0em 0.4em 0em 0.4em;height:1.6em"></div>
+            <div style="margin:1ex 0ex 1ex 0ex">
+                <div class="ui-slider-handle"
+                style="width:initial;padding:0em 0.4em 0em 0.4em;height:1.6em">
+                </div>
+            </div>
             """)
             this.domNode = this.jq.get()[0]
             this._handle = jQ(".ui-slider-handle", this.jq)
