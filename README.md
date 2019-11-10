@@ -1,13 +1,13 @@
 # Pyplet
 
-Pyplet is a web library for creating web applications from single Python files. Its name (although short for *Python Applet*) was heavily inspired by the french word *pipelette*, because of the unusual amount of communication between the client and the server involved in the execution of our apps.
+Pyplet is a library for creating web applications from single Python files. Its name (although short for *Python Applet*) was heavily inspired by the french word *pipelette*, because of the unusual amount of communication between the client and the server involved in the execution of our apps.
 
 This name was an amazing source of inspiration for not proposing any premature optimisation to solve this *not-so-much-of-a-problem*, preferring to keep the library simple and letting it grow freely of those constraints.
 
 One can try it using the command from the root folder of this repository. 
 
 ```bash
-python -m pyplet.server --apps pyplet/app_example.py --port 8888
+python -m pyplet.server --apps "*/app_*.py" --port 8888
 ```
 
 ## Philosophy

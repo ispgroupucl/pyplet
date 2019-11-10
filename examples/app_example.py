@@ -4,14 +4,15 @@ from matplotlib import pyplot as plt
 import numpy as np
 import sys
 
+# Let's define some responsive layout
 feed = Feed(
-    layout=[["left   ;classes=cell large-6",
-             "right  ;classes=cell large-6",
-             "test   ;classes=cell large-6",
-             "test2  ;classes=cell large-6"]],
+    layout=[["topleft   ;classes=cell large-6",
+             "topright  ;classes=cell large-6",
+             "botleft   ;classes=cell large-6",
+             "botright  ;classes=cell large-6"]],
     classes="", rowClasses="grid-x")
 
-
+# Let's put the layout in the web page using a Root
 Root(html="""
 <div class="grid-container fluid">
     <div class="grid-x">
@@ -21,24 +22,27 @@ Root(html="""
 """, children=[feed])
 
 
-with feed.enter("left"):
-    file_selector = Select(options=["a", "b"])
+with feed.enter("topleft"):
+    file_selector = Select(options=["flat", "not flat"])
     feed.append(file_selector)
 
 
-with feed.enter("right"):
+with feed.enter("topright"):
     feed.append(TextArea(value="ok"))
     feed.clear()
+    print("A textarea was here but got cleared")
+
     slider = Slider(value=50)
-    # feed.append(slider)
+    feed.append(slider)
+    print("A slider was here but got moved")
 
 
-with feed.enter("test2"):
+with feed.enter("botright"):
     print("Another block")
 
 
 @throttle(ms=1)
-@feed.enter("test")
+@feed.enter("botleft")
 def update(state_change):
     feed.clear()
     if slider.value == slider.min:
@@ -53,12 +57,12 @@ slider.on_change(update, "value")
 
 
 def switch(state_change):
-    file_selector.flat = state_change["value"] == "a"
+    file_selector.flat = state_change["value"] == "flat"
 file_selector.on_change(switch, "value")
 
 
-with feed.enter("test2"):
-    print("Here after will come a dynamically added slider")
+with feed.enter("botright"):
+    print("Here after will be dynamically moved the slider")
     feed.append(slider)
     raise Exception("Some exception was thrown")
     print("Some output that won't show.", file=sys.stderr)
