@@ -139,7 +139,8 @@ class Select(Component):
                     .enter()
                         .append("option")
                         .text(lambda d: d)
-                    .exit().remove()
+                    .exit()
+                        .remove()
                 )
             if state_change.value != undefined:
                 this.domNode.value = "" if state_change.value == None else state_change.value

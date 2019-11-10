@@ -215,6 +215,14 @@ class Session:
         Session.__lock.release()
 
 
+class ServerSession(Session):
+    pass
+
+
+class ExposerSession(Session):
+    pass
+
+
 @js_code
 class JSSession:
     def constructor(url):

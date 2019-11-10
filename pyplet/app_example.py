@@ -1,4 +1,4 @@
-from pyplet.widgets import Div, Root, Slider, TextArea, Select, throttle
+from pyplet.widgets import Root, Slider, TextArea, Select, throttle
 from pyplet.feed import Feed
 from matplotlib import pyplot as plt
 import numpy as np
@@ -34,7 +34,7 @@ with feed.enter("right"):
 
 
 with feed.enter("test2"):
-    print("hqhq")
+    print("Another block")
 
 
 @throttle(ms=1)
@@ -58,7 +58,7 @@ file_selector.on_change(switch, "value")
 
 
 with feed.enter("test2"):
-    print("Ceci est un slider ajouté dynamiquement après un print()")
+    print("Here after will come a dynamically added slider")
     feed.append(slider)
-    raise Exception("shit")
-    print("lol", file=sys.stderr)
+    raise Exception("Some exception was thrown")
+    print("Some output that won't show.", file=sys.stderr)
