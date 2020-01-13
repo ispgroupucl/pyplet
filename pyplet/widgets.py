@@ -108,7 +108,7 @@ class MultiSelect(Component):
 
     def handle(self, state_change):
         assert len(state_change) == 1 and "value" in state_change
-        self.update(value=state_change.value, _broadcast=False)
+        self.update(value=state_change.value, _send=False)
 
     @js_code
     class MultiSelectView:
