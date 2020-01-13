@@ -101,6 +101,48 @@ def on_change(*events, within=[], auto=True):
     return _decorator
 
 
+class MultiSelect(Component):
+    def init(self, options=None, value=None):
+        self.options = options
+        self.value = value
+
+    def handle(self, state_change):
+        assert len(state_change) == 1 and "value" in state_change
+        self.update(value=state_change.value, _broadcast=False)
+
+    @js_code
+    class MultiSelectView:
+        def constructor():
+            this.domNode = document.createElement("select")
+            this.domNode.setAttribute("multiple","") 
+
+            def _onchange(evt):
+                selected = this.domNode.selectedOptions
+                values = []
+                for opt in selected:
+                    values.push(opt.value)
+                g.session.ask_update(this, {"value":values})
+            this.domNode.onchange = _onchange.bind(this)
+
+        def handle(state_change, old_state):
+            if state_change.options != undefined:
+                selection = (d3.select(this.domNode)
+                    .selectAll("option")
+                    .data(state_change.options)
+                    .text(lambda d: d)
+                )
+                (selection.enter()
+                    .append("option")
+                    .text(lambda d: d)
+                )
+                selection.exit().remove()
+            if state_change.value != undefined:
+                this.domNode.value = "" if state_change.value == None else state_change.value
+
+
+    __view__ = MultiSelectView
+
+
 class Select(Component):
     def init(self, options=None, value=None, flat=False):
         self.options = options
@@ -132,16 +174,16 @@ class Select(Component):
 
         def handle(state_change, old_state):
             if state_change.options != undefined:
-                (d3.select(this.domNode)
+                selection = (d3.select(this.domNode)
                     .selectAll("option")
                     .data(state_change.options)
-                        .text(lambda d: d)
-                    .enter()
-                        .append("option")
-                        .text(lambda d: d)
-                    .exit()
-                        .remove()
+                    .text(lambda d: d)
                 )
+                (selection.enter()
+                    .append("option")
+                    .text(lambda d: d)
+                )
+                selection.exit().remove()
             if state_change.value != undefined:
                 this.domNode.value = "" if state_change.value == None else state_change.value
             if state_change.flat != undefined:
