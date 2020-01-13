@@ -78,10 +78,10 @@ class Block(Component):
             plt.show = _show
             sys.stdout = _stdout
             sys.stderr = _stderr
-    
+
     def clear(self):
         self.content = []
-    
+
     def append(self, widget):
         if isinstance(widget, Component):
             self.content__append = widget
@@ -113,7 +113,7 @@ class Block(Component):
             img.src = src
         else:
             self.append('<img src={!r} style={!r} />{}'.format(src, style, end))
-    
+
     def remove(self, widget):
         self.content__remove = widget
 
@@ -161,7 +161,7 @@ class Block(Component):
                 clearTimeout(this._clearPending[1])
                 height = Math.max(height, this._clearPending[0])
                 this._clearPending = None
-            
+
             this.jq.css("minHeight", height+"px")
             def clearHeight():
                 this.jq.animate({"minHeight": ''}, {"queue":False})
@@ -229,11 +229,11 @@ class Feed(Component):
                 yield blk
         finally:
             self.__current.pop()
-    
+
     def clear(self, name=None):
         blk = self._getblk(name)
         blk.clear()
-    
+
     def append(self, widget, name=None):
         blk = self._getblk(name)
         blk.append(widget)
@@ -241,7 +241,7 @@ class Feed(Component):
     def image(self, image, scale=1, CHW=False, style="", end=""):
         blk = self._getblk(None)
         blk.image(image, scale, CHW, style, end)
-    
+
     def remove(self, widget, name=None):
         blk = self._getblk(name)
         blk.remove(widget)

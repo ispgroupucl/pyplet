@@ -48,7 +48,7 @@ class PeriodicScheduler(Component):
         with self._session:
             self._f()
         self._handle = tornado.ioloop.IOLoop.current().add_timeout(self._dt, self.do)
-    
+
     def start(self):
         self._cleared = False
         self._handle = tornado.ioloop.IOLoop.current().add_timeout(self._dt, self.do)
@@ -71,11 +71,11 @@ class PeriodicScheduler(Component):
         def onclose():
             if this.reload:
                 setTimeout(location.reload.bind(location), 1000)
-                    
+
         def handle(state_change):
             if state_change.reload:
                 g.session.ws.onclose = this.onclose.bind(this)
-    
+
     __view__ = PeriodicSchedulerView
 
 
@@ -172,13 +172,13 @@ class Button(Component):
             def _onclick(evt):
                 g.session.ask_update(this, {"click":None})
             this.jq.click(_onclick.bind(this))
-        
+
         def handle(state_change):
             if state_change.label != undefined:
                 this.domNode.innerText = state_change.label
             if state_change.style != undefined:
                 this.domNode.setAttribute("style", state_change.style)
-    
+
     __view__ = ButtonView
 
 
@@ -240,7 +240,7 @@ class TextArea(Component):
     def handle(self, state_change):
         assert len(state_change) == 1 and "value" in state_change
         self.update(value=state_change["value"], _send=False)
-    
+
     @js_code
     class TextAreaView:
         def constructor():
@@ -279,7 +279,7 @@ class Slider(Component):
             state_change.value = min
         if value > max:
             state_change.value = max
-                
+
 
     def handle(self, state_change):
         assert len(state_change) == 1 and "value" in state_change
