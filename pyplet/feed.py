@@ -3,6 +3,7 @@ from .transpiler import js_code
 from .js_lib import jQ
 
 from matplotlib import pyplot as plt
+
 import numpy as np
 import scipy.misc
 
@@ -11,6 +12,9 @@ import contextlib
 import base64
 import sys
 import io
+
+import matplotlib
+matplotlib.use("Agg")
 
 
 def arrays_to_rgba(r=None, g=None, b=None, alpha=None, scale=1):
