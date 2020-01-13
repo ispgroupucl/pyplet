@@ -90,8 +90,8 @@ class Block(Component):
 
     def image(self, image, scale=1, CHW=False, style="", end="", img=None):
         file = io.BytesIO()
-        scipy.misc.toimage(img_to_rgba(image, scale=scale, CHW=CHW)).save(file, format="png")
-        src = "data:image/png;base64,{}".format(
+        scipy.misc.toimage(img_to_rgba(image, scale=scale, CHW=CHW)).save(file, format="jpg", quality=100)
+        src = "data:image/jpg;base64,{}".format(
             base64.b64encode(file.getvalue()).decode("utf-8"))
 
         if img is not None:
@@ -103,9 +103,9 @@ class Block(Component):
     def _show(self, style="", end="", img=None):
         file = io.BytesIO()
         plt.tight_layout()
-        plt.savefig(file, dpi="figure")
+        plt.savefig(file, dpi="figure", format="jpg", quality=100)
         plt.close()
-        src = "data:image/png;base64,{}".format(
+        src = "data:image/jpg;base64,{}".format(
             base64.b64encode(file.getvalue()).decode("utf-8"))
 
         if img is not None:
