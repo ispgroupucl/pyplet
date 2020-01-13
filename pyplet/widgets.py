@@ -283,7 +283,7 @@ class Slider(Component):
 
     def handle(self, state_change):
         assert len(state_change) == 1 and "value" in state_change
-        self.update(state_change, _send=False)
+        self.update(state_change, _send=self.min > state_change.value or self.max < state_change.value)
 
     @js_code
     class SliderView:
@@ -298,12 +298,21 @@ class Slider(Component):
             this.domNode = this.jq.get()[0]
             this._handle = jQ(".ui-slider-handle", this.jq)
 
+            def _ondblclick():
+                _value = prompt("", this.value)
+                if _value != null:
+                    _value = parseInt(_value)
+                    this.slider.slider("value", _value)
+                    _onslide.bind(this)(null, {"value": _value})
+
+            this._handle.dblclick(_ondblclick.bind(this))
+
             def _onslide(evt, ui):
                 _value = ui.value
                 this._handle.text(_value)
                 g.session.ask_update(this, {"value": _value})
 
-            this.jq.slider({
+            this.slider = this.jq.slider({
                 "slide": _onslide.bind(this),
             })
 
