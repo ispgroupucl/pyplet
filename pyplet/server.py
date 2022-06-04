@@ -3,19 +3,28 @@ import tornado.autoreload
 import tornado.websocket
 import tornado.ioloop
 
-from .primitives import JSSession, Session
+from .primitives import JSClass, JSSession, Session
 from .widgets import Root
 from .feed import Feed
 
 import collections
 import contextlib
 import functools
+import textwrap
 import glob
 import sys
 import os
+import re
 
 
-index_html = """
+def subst(str, **kwargs):
+    def replace(match):
+        name = match.group(1)
+        return kwargs.get(name, match.group(0))
+    return re.subn(r'<<([A-Za-z_-]+)>>', replace, str)[0]
+
+
+index_html = subst("""
 <!doctype html>
 <html class="no-js" lang="en">
     <head>
@@ -34,31 +43,32 @@ index_html = """
         <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.44.0/codemirror.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.44.0/mode/python/python.min.js"></script>
         <style type="text/css">
-            .stderr {{
+            .stderr {
                 color: red;
-            }}
-            .stdout {{
+            }
+            .stdout {
                 white-space: pre-wrap;
-            }}
+            }
         </style>
     </head>
     <body>
         <<TOP_BAR>>
         <script>
-            {JSSession}
-            g = {{session: new JSSession("ws://"+location.host+"/websocket/<<APP>>")}}
+            <<JSSession>>
+            g = {session: new JSSession("ws://"+location.host+"/websocket/<<APP>>")}
             $(document).foundation();
         </script>
     </body>
 </html>
-""".format(JSSession=JSSession._defn)
+""", JSSession=JSSession.defn)
 
 
-def files_bar(files):
+def get_top_bar(files):
     files.sort()
     dirs = collections.defaultdict(list)
     for file in files:
         dirs[os.path.dirname(file)].append(file)
+    print(dirs)
     items = ["""<li><a href="#">{}</a><ul class="menu vertical">"""
              .format(d)+
              "".join(["""<li><a href="{}">{}</a></li>"""
@@ -67,7 +77,7 @@ def files_bar(files):
              """</ul></li>"""
              for d, files in dirs.items()
              ]
-    return """
+    return subst("""
     <div class="top-bar">
         <div class="top-bar-left">
             <ul class="dropdown menu" data-dropdown-menu>
@@ -75,7 +85,7 @@ def files_bar(files):
             </ul>
         </div>
     </div>
-    """.replace("<<ITEMS>>", "".join(items))
+    """, ITEMS="".join(items))
 
 
 @contextlib.contextmanager
@@ -139,14 +149,18 @@ def make_app(config):
     class MainHandler(tornado.web.RequestHandler):
         def get(self):
             available_apps = glob.glob(config.apps)
-            top_bar = files_bar(available_apps) if config.top_bar else ""
-            self.write(index_html
-                       .replace("<<TOP_BAR>>", top_bar)
-                       .replace("<<APP>>", self.request.uri[1:])
-                       )
+            top_bar = get_top_bar(available_apps) if config.top_bar else ""
+            self.write(subst(index_html, TOP_BAR=top_bar, APP=self.request.uri[1:]))
+
+    class ClassesHandler(tornado.web.RequestHandler):
+        def get(self):
+            ref = self.request.uri[len('/classes/'):]
+            jsclass = JSClass._encountered.get(ref)
+            self.write(subst('g.session.classes["<<REF>>"] = <<CLASS>>', REF=ref, CLASS=jsclass.defn))
 
     app = tornado.web.Application([
         (r"/websocket/.*", SocketHandler),
+        (r"/classes/.*", ClassesHandler),
         (r"/.*", MainHandler),
     ], debug=True)
     return app
@@ -155,7 +169,7 @@ def make_app(config):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", default=8888, type=int)
+    parser.add_argument("--port", default=3000, type=int)
     parser.add_argument("--apps", default="*/app_*.py")
     parser.add_argument("--top-bar", default=1, type=int)
     parser.add_argument("--host", default="127.0.0.1")

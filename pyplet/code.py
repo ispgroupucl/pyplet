@@ -1,4 +1,4 @@
-from .primitives import Component
+from .primitives import Component, JSClass
 from .widgets import on_change
 from .feed import Feed
 from .transpiler import js_code
@@ -39,8 +39,8 @@ class CodeCell(Component):
         if state_change.instantiate != undefined:
             self.instantiate = state_change.instantiate
 
-    @js_code
-    class CodeCellView:
+    __view__ = JSClass('''
+    class CodeCellView {
         def constructor(comp_id):
             this.domNode = document.createElement("div")
             this.domNode.style.border = "1px solid lightgray"
@@ -68,5 +68,4 @@ class CodeCell(Component):
                     this.textarea.value = state_change.code
                 else:
                     this.editor.setValue(state_change.code)
-
-    __view__ = CodeCellView
+    ''')

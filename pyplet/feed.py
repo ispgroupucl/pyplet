@@ -1,11 +1,11 @@
-from .primitives import Component
+from .primitives import Component, JSClass
 from .transpiler import js_code
 from .js_lib import jQ
 
 from matplotlib import pyplot as plt
 
 import numpy as np
-import scipy.misc
+import imageio
 
 import collections
 import contextlib
@@ -90,7 +90,7 @@ class Block(Component):
 
     def image(self, image, scale=1, CHW=False, style="", end="", img=None):
         file = io.BytesIO()
-        scipy.misc.toimage(img_to_rgba(image, scale=scale, CHW=CHW)).save(file, format="jpg", quality=100)
+        imageio.imsave(file, img_to_rgba(image, scale=scale, CHW=CHW), format="jpg", quality=100)
         src = "data:image/jpg;base64,{}".format(
             base64.b64encode(file.getvalue()).decode("utf-8"))
 
@@ -125,66 +125,81 @@ class Block(Component):
         def write(self, text):
             self.block.content__append = dict(content=text, stream=self.stream)
 
-    @js_code
-    class BlockView:
-        def constructor():
+    __view__ = JSClass('''
+    class BlockView {
+        constructor() {
             this.domNode = document.createElement("div")
-            this.jq = jQ(this.domNode)
+            this.jq = $(this.domNode)
+        }
 
-        def append(content):
-            if content.stream:
-                block = this.domNode
-                last = block.lastChild
-                if (not last or not last.classList.contains(content.stream)):
+        append(content) {
+            if (content.stream) {
+                let block = this.domNode
+                let last = block.lastChild
+                if ((!last || !last.classList.contains(content.stream))) {
                     last = document.createElement("pre")
                     last.classList.add(content.stream)
                     last.style.color = content.color
                     block.appendChild(last)
-                newContent = content.content
-                lastCharet = newContent.lastIndexOf("\r")
-                if lastCharet >= 0:
+                }
+                let newContent = content.content
+                let lastCharet = newContent.lastIndexOf("\\r")
+                if (lastCharet >= 0) {
                     whole = last.innerText + content.content.slice(0, lastCharet)
-                    lastLine = last.innerText.lastIndexOf("\n")
+                    lastLine = last.innerText.lastIndexOf("\\n")
                     last.innerText = whole.slice(0,lastLine+1) + newContent.slice(lastCharet+1)
-                else:
+                } else {
                     last.innerText += content.content
-            if content.html:
+                }
+            }
+            if (content.html) {
                 this.jq.append(content.html)
-            if content.comp_id:
-                comp = g.session.components[content.comp_id]
+            }
+            if (content.comp_id) {
+                let comp = g.session.components[content.comp_id]
                 this.domNode.appendChild(comp.domNode)
+            }
+        }
 
-        def handle_height():
-            height = this.jq.height()
+        handle_height() {
+            let height = this.jq.height()
             this.domNode.innerHTML = ""
-            if this._clearPending:
+            if (this._clearPending) {
                 clearTimeout(this._clearPending[1])
                 height = Math.max(height, this._clearPending[0])
-                this._clearPending = None
-
+                this._clearPending = null
+            }
             this.jq.css("minHeight", height+"px")
-            def clearHeight():
-                this.jq.animate({"minHeight": ''}, {"queue":False})
-                this._clearPending = None
+            function clearHeight() {
+                this.jq.animate({"minHeight": ''}, {"queue":false})
+                this._clearPending = null
+            }
             this._clearPending = [height, setTimeout(clearHeight.bind(this), this.ms)]
+        }
 
-
-        def handle(state_change):
-            if state_change.content != undefined:
+        state_change(state_change) {
+            if (state_change.content !== undefined) {
                 this.handle_height()
-                for c in state_change.content:
+                for (let c of state_change.content) {
                     this.append(c)
-            if state_change.content__append != undefined:
+                }
+            }
+            if (state_change.content__append !== undefined) {
                 this.append(state_change.content__append)
-            if state_change.content__remove != undefined:
+            }
+            if (state_change.content__remove !== undefined) {
                 this.domNode.removeChild(g.session.components[state_change.content__remove.comp_id].domNode)
                 this.handle_height()
-            if state_change.classes != undefined:
+            }
+            if (state_change.classes !== undefined) {
                 this.domNode.setAttribute("class", state_change.classes)
-            if state_change.style != undefined:
+            }
+            if (state_change.style !== undefined) {
                 this.domNode.setAttribute("style", state_change.style)
-
-    __view__ = BlockView
+            }
+        }
+    }
+    ''')
 
 
 def _trim(strings):
@@ -246,30 +261,38 @@ class Feed(Component):
         blk = self._getblk(name)
         blk.remove(widget)
 
-    @js_code
-    class FeedView:
-        def constructor():
+    __view__ = JSClass('''
+    class FeedView {
+        constructor() {
             this.domNode = document.createElement("div")
             this._rows = []
+        }
 
-        def handle(state_change):
-            if state_change.classes != undefined:
-                if state_change.classes != "":
-                    this.domNode.classList.add(*state_change.classes.split(" "))
-            if state_change.layout != undefined:
+        state_change(state_change) {
+            if (state_change.classes != undefined) {
+                if (state_change.classes != "") {
+                    this.domNode.classList.add(...state_change.classes.split(" "))
+                }
+            }
+            if (state_change.layout != undefined) {
                 this._rows = []
                 this.domNode.innerHTML = ""
-                for row in state_change.layout:
-                    domRow = document.createElement("div")
-                    if this.rowClasses != "":
-                        domRow.classList.add(*this.rowClasses.split(" "))
+                for (let row of state_change.layout) {
+                    let domRow = document.createElement("div")
+                    if (this.rowClasses != "") {
+                        domRow.classList.add(...this.rowClasses.split(" "))
+                    }
                     this._rows.push(domRow)
-                    for block in row:
-                        blk_comp_id = this.blocks[block.name].comp_id
+                    for (let block of row) {
+                        let blk_comp_id = this.blocks[block.name].comp_id
                         domRow.appendChild(g.session.components[blk_comp_id].domNode)
+                    }
                     this.domNode.appendChild(domRow)
-
-    __view__ = FeedView
+                }
+            }
+        }
+    }
+    ''')
 
     def _getblk(self, name):
         if name is None:

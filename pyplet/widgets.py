@@ -1,8 +1,7 @@
 import tornado.ioloop
 
 from .transpiler import js_code
-from .js_lib import jQ, undefined
-from .primitives import Component, Session, AbortUpdateException
+from .primitives import Component, Session, JSClass
 
 import contextlib
 import functools
@@ -64,19 +63,24 @@ class PeriodicScheduler(Component):
             tornado.ioloop.IOLoop.current().remove_timeout(self._handle)
         self.start()
 
-    @js_code
-    class PeriodicSchedulerView:
-        def constructor():
-            pass
-        def onclose():
-            if this.reload:
+    __view__ = JSClass('''
+    class PeriodicSchedulerView {
+        constructor() {
+        }
+
+        onclose() {
+            if (this.reload) {
                 setTimeout(location.reload.bind(location), 1000)
+            }
+        }
 
-        def handle(state_change):
-            if state_change.reload:
+        state_change(state_change) {
+            if (state_change.reload) {
                 g.session.ws.onclose = this.onclose.bind(this)
-
-    __view__ = PeriodicSchedulerView
+            }
+        }
+    }
+    ''')
 
 
 def on_change(*events, within=[], auto=True):
@@ -106,41 +110,45 @@ class MultiSelect(Component):
         self.options = options
         self.value = value
 
-    def handle(self, state_change):
-        assert len(state_change) == 1 and "value" in state_change
-        self.update(value=state_change.value, _send=False)
+    def user_event(self, user_event):
+        assert len(user_event) == 1 and "value" in user_event
+        self.update(value=user_event['value'], _send_frontend=False)
 
-    @js_code
-    class MultiSelectView:
-        def constructor():
+    __view__ = JSClass('''
+    class MultiSelectView {
+        constructor() {
             this.domNode = document.createElement("select")
             this.domNode.setAttribute("multiple","") 
 
-            def _onchange(evt):
+            function _onchange(evt) {
                 selected = this.domNode.selectedOptions
                 values = []
-                for opt in selected:
+                for (opt in selected) {
                     values.push(opt.value)
-                g.session.ask_update(this, {"value":values})
+                }
+                g.session.user_event(this, {"value":values})
+            }
             this.domNode.onchange = _onchange.bind(this)
 
-        def handle(state_change, old_state):
-            if state_change.options != undefined:
-                selection = (d3.select(this.domNode)
+        state_change(state_change) {
+            if (state_change.options !== undefined) {
+                let selection = (d3.select(this.domNode)
                     .selectAll("option")
                     .data(state_change.options)
-                    .text(lambda d: d)
-                )
+                    .text((d) => d)
+                );
                 (selection.enter()
                     .append("option")
-                    .text(lambda d: d)
+                    .text((d) => d)
                 )
                 selection.exit().remove()
-            if state_change.value != undefined:
+            }
+            if (state_change.value !== undefined) {
                 this.domNode.value = "" if state_change.value == None else state_change.value
-
-
-    __view__ = MultiSelectView
+            }
+        }
+    }
+    ''')
 
 
 class Select(Component):
@@ -149,50 +157,49 @@ class Select(Component):
         self.value = value
         self.flat = flat
 
-    def adjust(self, state_change):
-        if state_change.options != undefined:
-            value = (state_change.value
-                     if state_change.value != undefined
-                     else self.value)
-            if value is not None and value not in state_change.options:
-                state_change.value = None
+    def user_event(self, user_event):
+        assert len(user_event) == 1 and "value" in user_event
+        self.update(value=user_event['value'], _send_frontend=False)
 
-    def handle(self, state_change):
-        assert len(state_change) == 1 and "value" in state_change
-        self.update(value=state_change.value, _send=False)
-
-    @js_code
-    class SelectView:
-        def constructor():
+    __view__ = JSClass('''
+    class SelectView {
+        constructor() {
             this.domNode = document.createElement("select")
 
-            def _onchange(evt):
-                value = this.domNode.value
-                g.session.ask_update(this, {"value":None if value == "" else value})
+            function _onchange(evt) {
+                let value = this.domNode.value
+                g.session.user_event(this, {"value":(value === "") ? null : value})
                 this.domNode.value = this.domNode.value
+            }
             this.domNode.onchange = _onchange.bind(this)
+        }
 
-        def handle(state_change, old_state):
-            if state_change.options != undefined:
-                selection = (d3.select(this.domNode)
+        state_change(state_change, old_state) {
+            if (state_change.options !== undefined) {
+                let selection = (d3.select(this.domNode)
                     .selectAll("option")
                     .data(state_change.options)
-                    .text(lambda d: d)
-                )
+                    .text((d) => d)
+                );
                 (selection.enter()
                     .append("option")
-                    .text(lambda d: d)
+                    .text((d) => d)
                 )
                 selection.exit().remove()
-            if state_change.value != undefined:
-                this.domNode.value = "" if state_change.value == None else state_change.value
-            if state_change.flat != undefined:
-                if state_change.flat:
+            }
+            if (state_change.value !== undefined) {
+                this.domNode.value = (state_change.value === null) ? "" : state_change.value
+            }
+            if (state_change.flat !== undefined) {
+                if (state_change.flat) {
                     this.domNode.setAttribute("multiple","")
-                else:
+                } else {
                     this.domNode.removeAttribute("multiple")
-
-    __view__ = SelectView
+                }
+            }
+        }
+    }
+    ''')
 
 
 class Button(Component):
@@ -201,27 +208,32 @@ class Button(Component):
         self.value = 0
         self.style = style
 
-    def handle(self, state_change):
-        assert len(state_change) == 1 and "click" in state_change
+    def user_event(self, user_event):
+        assert len(user_event) == 1 and "click" in user_event
         self.value += 1
 
-    @js_code
-    class ButtonView:
-        def constructor():
+    __view__ = JSClass('''
+    class ButtonView {
+        constructor() {
             this.domNode = document.createElement("button")
-            this.jq = jQ(this.domNode)
+            this.jq = $(this.domNode)
             this.jq.button()
-            def _onclick(evt):
-                g.session.ask_update(this, {"click":None})
+            function _onclick(evt) {
+                g.session.user_event(this, {"click":None})
+            }
             this.jq.click(_onclick.bind(this))
+        }
 
-        def handle(state_change):
-            if state_change.label != undefined:
+        state_change(state_change) {
+            if (state_change.label !== undefined) {
                 this.domNode.innerText = state_change.label
-            if state_change.style != undefined:
+            }
+            if (state_change.style !== undefined) {
                 this.domNode.setAttribute("style", state_change.style)
-
-    __view__ = ButtonView
+            }
+        }
+    }
+    ''')
 
 
 class Root(Component):
@@ -232,25 +244,29 @@ class Root(Component):
         self.children = children if children is not None else []
         self.selector = selector
 
-    @js_code
-    class RootView:
-        def constructor():
-            pass
+    __view__ = JSClass('''
+    class RootView {
+        constructor() {
+        }
 
-        def handle(state_change):
-            if state_change.html != undefined:
-                rootRoot = jQ(state_change.html).get()[0]
-                this.domNode = jQ(rootRoot, this.selector).get()[0]
+        state_change(state_change) {
+            if (state_change.html !== undefined) {
+                let rootRoot = $(state_change.html).get()[0]
+                this.domNode = $(rootRoot, this.selector).get()[0]
                 document.getElementsByTagName("body")[0].appendChild(rootRoot)
-                for child in this.children:
-                    comp = g.session.components[child.comp_id]
+                for (let child of this.children) {
+                    let comp = g.session.components[child.comp_id]
                     this.domNode.appendChild(comp.domNode)
-            elif state_change.children != undefined:
-                for child in state_change.children:
-                    comp = g.session.components[child.comp_id]
+                }
+            } else if (state_change.children !== undefined) {
+                for (let child of state_change.children) {
+                    let comp = g.session.components[child.comp_id]
                     this.domNode.appendChild(comp.domNode)
-
-    __view__ = RootView
+                }
+            }
+        }
+    }
+    ''')
 
 
 class Image(Component):
@@ -258,18 +274,22 @@ class Image(Component):
         self.src = src
         self.style = style
 
-    @js_code
-    class ImageView:
-        def constructor():
+    __view__ = JSClass('''
+    class ImageView {
+        constructor() {
             this.domNode = document.createElement("img")
+        }
 
-        def handle(state_change, old_state):
-            if state_change.src != undefined:
+        state_change(state_change, old_state) {
+            if (state_change.src !== undefined) {
                 this.domNode.setAttribute("src", state_change.src)
-            if state_change.style != undefined:
+            }
+            if (state_change.style !== undefined) {
                 this.domNode.setAttribute("style", state_change.style)
-
-    __view__ = ImageView
+            }
+        }
+    }
+    ''')
 
 
 class TextArea(Component):
@@ -279,29 +299,36 @@ class TextArea(Component):
         self.classes = classes
         self.style = style
 
-    def handle(self, state_change):
-        assert len(state_change) == 1 and "value" in state_change
-        self.update(value=state_change["value"], _send=False)
+    def user_event(self, user_event):
+        assert len(user_event) == 1 and "value" in user_event
+        self.update(value=user_event["value"], _send_frontend=False)
 
-    @js_code
-    class TextAreaView:
-        def constructor():
+    __view__ = JSClass('''
+    class TextAreaView {
+        constructor() {
             this.domNode = document.createElement("textarea")
-            def _onchange(evt):
-                g.session.ask_update(this, {"value": this.domNode.value})
+            function _onchange(evt) {
+                g.session.user_event(this, {"value": this.domNode.value})
+            }
             this.domNode.onchange = _onchange.bind(this)
+        }
 
-        def handle(state_change):
-            if state_change.value != undefined:
+        state_change(state_change) {
+            if (state_change.value !== undefined) {
                 this.domNode.value = state_change.value
-            if state_change.placeholder != undefined:
+            }
+            if (state_change.placeholder !== undefined) {
                 this.domNode.setAttribute("placeholder", state_change.placeholder)
-            if state_change.classes != undefined:
+            }
+            if (state_change.classes !== undefined) {
                 this.domNode.setAttribute("class", state_change.classes)
-            if state_change.style != undefined:
+            }
+            if (state_change.style !== undefined) {
                 this.domNode.setAttribute("style", state_change.style)
-
-    __view__ = TextAreaView
+            }
+        }
+    }
+    ''')
 
 
 class Slider(Component):
@@ -310,61 +337,56 @@ class Slider(Component):
         self.max = max
         self.value = value
 
-    def adjust(self, state_change):
-        min = state_change.min if state_change.min != undefined else self.min
-        max = state_change.max if state_change.max != undefined else self.max
-        value = state_change.value if state_change.value != undefined else self.value
-        if state_change.min != undefined or state_change.max != undefined:
-            if max < min:
-                raise AbortUpdateException("max ({}) < min ({})".format(max, min))
-        if value < min:
-            state_change.value = min
-        if value > max:
-            state_change.value = max
+    def user_event(self, user_event):
+        assert len(user_event) == 1 and "value" in user_event
+        self.update(value=user_event['value'],
+            _send_frontend=user_event['value'] not in range(self.min, self.max+1))
 
-
-    def handle(self, state_change):
-        assert len(state_change) == 1 and "value" in state_change
-        self.update(state_change, _send=self.min > state_change.value or self.max < state_change.value)
-
-    @js_code
-    class SliderView:
-        def constructor():
-            this.jq = jQ("""
+    __view__ = JSClass('''
+    class SliderView {
+        constructor() {
+            this.jq = $(`
             <div style="margin:1ex 0ex 1ex 0ex">
                 <div class="ui-slider-handle"
                 style="width:initial;padding:0em 0.4em 0em 0.4em;height:1.6em">
                 </div>
             </div>
-            """)
+            `)
             this.domNode = this.jq.get()[0]
-            this._handle = jQ(".ui-slider-handle", this.jq)
+            this._handle = $(".ui-slider-handle", this.jq)
 
-            def _ondblclick():
-                _value = prompt("", this.value)
-                if _value != null:
+            function _ondblclick() {
+                let _value = prompt("", this.value)
+                if (_value !== null) {
                     _value = parseInt(_value)
                     this.slider.slider("value", _value)
                     _onslide.bind(this)(null, {"value": _value})
+                }
+            }
 
             this._handle.dblclick(_ondblclick.bind(this))
 
-            def _onslide(evt, ui):
-                _value = ui.value
+            function _onslide(evt, ui) {
+                let _value = ui.value
                 this._handle.text(_value)
-                g.session.ask_update(this, {"value": _value})
+                g.session.user_event(this, {"value": _value})
+            }
 
             this.slider = this.jq.slider({
                 "slide": _onslide.bind(this),
             })
+        }
 
-        def handle(state_change):
-            if state_change.min != undefined:
+        state_change(state_change) {
+            if (state_change.min !== undefined) {
                 this.jq.slider("option", "min", state_change.min)
-            if state_change.max != undefined:
+            }
+            if (state_change.max !== undefined) {
                 this.jq.slider("option", "max", state_change.max)
-            if state_change.value != undefined:
+            }
+            if (state_change.value !== undefined) {
                 this.jq.slider("value", state_change.value)
                 this._handle.text(state_change.value)
-
-    __view__ = SliderView
+            }
+        }
+    }''')

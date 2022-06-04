@@ -23,7 +23,7 @@ Root(html="""
 
 
 with feed.enter("topleft"):
-    file_selector = Select(options=["flat", "not flat"])
+    file_selector = Select(value="flat", options=["flat", "not flat"])
     feed.append(file_selector)
 
 
@@ -57,7 +57,7 @@ slider.on_change(update, "value")
 
 
 def switch(state_change):
-    file_selector.flat = state_change["value"] == "flat"
+    file_selector.flat = file_selector.value == "flat"
 file_selector.on_change(switch, "value")
 
 
